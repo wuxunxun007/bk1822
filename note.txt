@@ -1,0 +1,245 @@
+1、创建项目
+  如果未安装create-react-app脚手架,但是必须得安装node
+    npx create-react-app myapp
+  如果安装了脚手架
+    create-react-app myapp
+2、抽离配置文件
+  默认的配置是在react-scripts内部，它又在node_modules内部
+  npm run eject
+3、給项目添加@，代替src目录，类似于vue中的@
+  config/weback.config.js中找到resolve选项
+    resolve: {
+      extensions： 导入文件时可以省略的后缀,
+      alias： 别名，可以配置@
+    }
+  本次案例中 268 行添加
+    '@': path.join(__dirname, '../', 'src')
+4、安装项目必须的依赖
+  路由 npm i react-router-dom -S
+  数据 npm i axios -S     (fetch --- 无需安装)
+  UI库  npm i  -S
+  状态管理器
+    npm i redux redux-thunk react-redux -S
+    (企业可能是：npm i mobx -S
+      异步 redux-promise   ---- 小程序（框架）
+    )
+  scss库： npm i node-sass sass-loader -D
+  其他库：看需求 react-pullload --- 下拉刷新，上拉加载
+5、修改项目的文件结构
+  src
+    api
+    components
+    layout
+      App.js
+      App.test.js
+    lib    --------   scss库
+    pages
+    router
+      index.js
+    index.js
+    serviceWorker.js
+6、路由
+  路由找布局，布局找页面，页面找组件
+  3.1布局 src/layout
+    App.js ---- 首页、分类、购物车、我的 ------ (上中下)
+    UserApp.js --- 登录、注册 ---- （上下、没有底部）
+    DetailApp.js --- 详情 ---- (独立的)
+  3.2 src/router/index.js 依据布局设置路由
+    <Router>
+      <Switch>
+        <Route path = "/detailapp" component = { DetailApp } />
+        <Route path = "/userapp" component = { UserApp } />
+        <Route path = "/" component = { App } />
+      </Switch>
+    </Router>
+  3.3 设定App布局下的路由---- 首页、分类、购物车、我的 ---- 重定向
+    layout/App.js
+  3.4 设定UserApp布局下的路由---- 登录、注册
+    layout/UserApp.js
+  3.5 设定DetailApp布局下的路由---- 详情
+    layout/DetailApp.js
+  3.6 设置个页面布局
+    src/pages/*
+  3.7 编程式导航和声明式导航
+  3.8 设置公共组件 Back
+7、添加UI库
+  7.1
+    // 引入 FastClick 解决点击穿透，300ms延时问题
+    // 引入 Promise 的 fallback 支持 (部分安卓手机不支持 Promise)
+  public/index.html的head处添加如下代码
+    <script src="https://as.alipayobjects.com/g/component/fastclick/1.0.6/fastclick.js"></script>
+    <script>
+      if ('addEventListener' in document) {
+        document.addEventListener('DOMContentLoaded', function() {
+          FastClick.attach(document.body);
+        }, false);
+      }
+      if(!window.Promise) {
+        document.writeln('<script src="https://as.alipayobjects.com/g/component/es6-promise/3.2.2/es6-promise.min.js"'+'>'+'<'+'/'+'script>');
+      }
+    </script>
+  7.2 引入UI库 --- 按需引入
+  npm i babel-plugin-import -D
+  config/webpack.config.js
+    375-377行添加如下代码
+      "plugins": [
+        ["import", { libraryName: "antd-mobile", style: "css" }] // `style: true` 会加载 less 文件
+      ],
+  7.3 引用UI库 -- Button
+    import { Button } from 'antd-mobile';
+
+    <Button onClick = {  }>UI库按钮</Button>
+8、数据处理 --- 状态管理器
+  redux 
+  redux-thunk
+  react-redux
+
+  新建src/store/home.js --- 针对首页的状态管理器 --- 每个页面都需要操作
+    const reducer = (state = {
+        homebannerlist: [1, 2, 3],
+        homedatalist: [4, 5, 6]
+      }, action) => {
+        const { type, data } = action;
+        switch (type) {
+          case 'CHANGE_HOME_BANNER_LIST':
+            let homebannerlist = {homebannerlist: data};
+            return { ...state, ...homebannerlist};
+          case 'CHANGE_HOME_DATA_LIST':
+            let homedatalist = {homedatalist: data};
+            return { ...state, ...homedatalist};
+          default:
+            return state;
+        }
+      }
+      export default reducer;
+
+  新建src/store/index.js  ----  只需要操作一次
+    // combineReducers 组合页面的状态管理器
+    // applyMiddleware 中间件----使用异步操作
+    import { createStore, combineReducers, applyMiddleware } from 'redux';
+    import thunk from 'redux-thunk';   // ------- 异步操作
+    import home from './home';  //如果有新的需要引入新的************
+
+    const reducer = combineReducers({ // 整合各个页面需要的数据
+      home //如果有新的需要引入新的****************
+    })
+
+    const store = createStore(reducer, applyMiddleware(thunk));
+
+    export default store;
+
+  修改入口文件处，将状态管理器用进去 src/index.js ----- 只需要操作一次
+    import { Provider } from 'react-redux';
+    import store from '@/store';
+
+    ReactDOM.render(
+      <Provider store = { store }>
+        <Router />
+      </Provider>
+      , document.getElementById('root'));
+  
+  利用react-redux高阶组件修改pages下的页面，以home为例
+  pages 
+    home
+      action.js // 异步操作文件
+      index.js  // 容器组件
+      UI.js // UI组件
+    
+      UI.js
+        componentDidMount () {
+          this.props.requesthomebanner(); // 由容器组件提供
+          this.props.requsethomedata(); // 由容器组件提供
+        }
+      index.js
+        import { connect } from 'react-redux';
+        import UI from './UI';
+        import action from './action';
+
+        const mapStateToProps = (state) => { // 拿到首页中的数据
+          console.log(state) //所有状态管理器中数据
+          return {
+            homebannerlist: state.home.homebannerlist,
+            homedatalist: state.home.homedatalist
+          }
+        }
+
+        const mapDispatchToProps = (dispatch) => { // UI组件需要执行的函数
+          return {
+            requesthomebanner () { // 交给action去处理异步操作
+              dispatch(action.requesthomebanner());
+            },
+            requsethomedata () {
+              dispatch(action.requsethomedata());
+            }
+          }
+        }
+
+        const Com = connect(mapStateToProps, mapDispatchToProps)(UI);
+
+        export default Com;
+    action.js
+      import api from '@/api/home';
+
+      export default {
+        requesthomebanner () { // 固定
+          return function (dispatch) { // 固定
+          // 异步操作 ---- 交给api文件去处理
+            api.requesthomebanner().then(data => {
+              console.log(data)
+              dispatch({ //改变状态管理器中的数据
+                type: 'CHANGE_HOME_BANNER_LIST',
+                data
+              })
+            });
+          }
+        },
+        requsethomedata () {
+          return function (dispatch) {
+            api.requsethomedata().then(data => {
+              console.log(data)
+              dispatch({
+                type: 'CHANGE_HOME_DATA_LIST',
+                data
+              })
+            });
+          }
+        }
+      }
+    新加 
+      api
+        baseUrl.js
+        home.js
+
+      baseUrl.js --- 解决开发环境服务器和生产环境服务器
+        const isDev = process.env.NODE_ENV === 'development';
+
+        const baseUrl = isDev ? 'https://www.daxunxun.com' : 'https://www.daxunxun.com';
+
+        export default baseUrl;
+
+
+      home.js  ---  利用promise解决异步问题
+        import axios from 'axios';
+        import baseUrl from './base';
+
+        export default {
+          requesthomebanner () {
+            console.log('bannerdata')
+            return new Promise((resolve, reject) => {
+              axios.get(baseUrl + '/banner')
+              .then(data => {
+                resolve(data.data)
+              })
+            })
+          },
+          requsethomedata () {
+            console.log('homedata')
+            return new Promise((resolve, reject) => {
+              axios.get(baseUrl + '/douban')
+              .then(data => {
+                resolve(data.data)
+              })
+            })
+          }
+        }
+9、依据需求开发每一个页面，重复 7和8步
